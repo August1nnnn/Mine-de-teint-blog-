@@ -7,8 +7,8 @@
     "scheduled_date": "2026-02-20",
     "scheduled_time": "02:00",
     "scheduled_datetime": "2026-02-20T02:00:00",
-    "published": false,
-    "published_at": null
+    "published": true,
+    "published_at": "2026-02-20T03:01:23.338757+01:00"
   },
   {
     "index": 2,
