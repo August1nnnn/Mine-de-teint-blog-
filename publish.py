@@ -270,6 +270,33 @@ def generate_seo_tags(title, keywords):
     return ", ".join(unique_tags)
 
 
+def title_case_fr(title):
+    """Majuscule a chaque mot sauf petits mots francais (articles, prepositions)."""
+    # Mots qui restent en minuscule sauf en debut de titre
+    minor_words = {'de', 'du', 'des', 'le', 'la', 'les', 'un', 'une',
+                   'et', 'ou', 'en', 'a', 'au', 'aux', 'par', 'pour',
+                   'sur', 'avec', 'dans', 'ne', 'pas', 'se', 'ce', 'que',
+                   'qui', 'dont', 'son', 'sa', 'ses', 'vs'}
+    words = title.split()
+    result = []
+    for i, word in enumerate(words):
+        # Garder les mots deja tout en majuscules (acronymes : LED, SEO, etc.)
+        if word.isupper() and len(word) > 1:
+            result.append(word)
+        # Premier mot ou mot apres : toujours en majuscule
+        elif i == 0 or (result and result[-1].endswith(':')):
+            result.append(word.capitalize())
+        # Petits mots en minuscule
+        elif word.lower() in minor_words:
+            result.append(word.lower())
+        # Mots avec chiffres (650nm, 460nm) : garder tel quel
+        elif any(c.isdigit() for c in word):
+            result.append(word)
+        else:
+            result.append(word.capitalize())
+    return ' '.join(result)
+
+
 def extract_seo_and_content(raw_response):
     """Extrait le title tag, la meta description et le contenu HTML."""
     lines = raw_response.strip().split("\n")
@@ -295,6 +322,12 @@ def extract_seo_and_content(raw_response):
     # Securite : tronquer le title si Claude depasse
     if len(title_tag) > 70:
         title_tag = title_tag[:67] + "..."
+
+    # Title Case : Majuscule a Chaque Mot pour le titre
+    title_tag = title_case_fr(title_tag)
+
+    # Supprimer tout H1 du HTML (Shopify ajoute deja le titre en H1)
+    html_content = re.sub(r'<h1[^>]*>.*?</h1>\s*', '', html_content, flags=re.IGNORECASE | re.DOTALL)
 
     log(f"Title tag : {len(title_tag)} car. -> {title_tag}")
     log(f"Meta desc : {len(meta_description)} car.")
@@ -396,12 +429,17 @@ AVANT de commencer le HTML de l'article, ecris ces deux lignes :
 TITLE_TAG: [titre SEO optimise, MAXIMUM 70 caracteres espaces compris, percutant et court, mot-cle principal au debut. Peut etre different du H1. Ne PAS ajouter " | Mine de Teint" sauf si ca rentre dans les 70 car.]
 META_DESCRIPTION: [meta description, viser 150 a 160 caracteres. Utiliser tout l'espace. Mot-cle principal, benefice concret, chiffre ou promesse. Terminer par un point. Jamais de guillemets.]
 
-Puis saute une ligne et commence le HTML avec un H1 qui peut etre plus long et descriptif que le title tag.
+Puis saute une ligne et commence le HTML DIRECTEMENT avec le contenu (intro, puis table des matieres, puis sections H2).
+
+REGLE CRITIQUE — PAS DE H1 :
+- NE PAS inclure de balise <h1> dans le HTML. JAMAIS.
+- Shopify ajoute automatiquement le titre en H1. Un double H1 est une erreur SEO grave.
+- Commence directement avec un paragraphe d'introduction <p>, puis la table des matieres, puis les sections <h2>.
 
 REGLES SEO ON-PAGE STRICTES :
 
 TITRES ET STRUCTURE :
-- Le H1 contient le mot-cle principal exact (peut etre plus long que le title tag)
+- PAS DE H1 (Shopify le genere automatiquement)
 - Chaque H2 cible une variante longue traine ou une question Google
 - Les H3 approfondissent les H2 avec des sous-themes specifiques
 - Maximum 300 mots entre deux sous-titres (H2 ou H3)
