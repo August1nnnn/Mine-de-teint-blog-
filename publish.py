@@ -191,16 +191,33 @@ UNSPLASH_QUERIES = {
     "faq": ["woman reading skincare", "gentle light therapy", "skincare education"]
 }
 
-# Queries image vedette — DA corporate skincare lisse et coherente
+# Pool cure d'images vedettes — URLs directes Unsplash CDN (pas besoin d'API)
+# DA coherente : skincare, soin visage, spa, light therapy, glow
+# Chaque image a ete verifiee : pas de marque visible, esthetique pro
+# Format 1200x630 (ratio OG image) avec crop intelligent sur les visages
+CURATED_FEATURED_IMAGES = [
+    # Visages / glow / beaute
+    "https://images.unsplash.com/photo-1767884139060-458f00bb75b1?w=1200&h=630&fit=crop&crop=faces&q=80",  # Closeup visage femme lumiere chaude
+    "https://images.unsplash.com/photo-1560190062-061cb7f295bd?w=1200&h=630&fit=crop&crop=faces&q=80",  # Portrait femme
+    "https://images.unsplash.com/photo-1569259330179-ef650d87beee?w=1200&h=630&fit=crop&crop=faces&q=80",  # Femme peau lumineuse
+    "https://images.unsplash.com/photo-1589221158826-aed6c80c3f15?w=1200&h=630&fit=crop&crop=faces&q=80",  # Femme peau nette
+    # Spa / soin facial
+    "https://images.unsplash.com/photo-1759214630580-7b2e97e2c29b?w=1200&h=630&fit=crop&crop=faces&q=80",  # Femme serviettes spa/sauna
+    "https://images.unsplash.com/photo-1719123045765-08ca3c27991b?w=1200&h=630&fit=crop&crop=faces&q=80",  # Femme serviette tete spa
+    # Produits skincare (sans marque)
+    "https://images.unsplash.com/photo-1768235146447-26b1549f845a?w=1200&h=630&fit=crop&crop=center&q=80",  # Pot creme visage bois
+    "https://images.unsplash.com/photo-1768235146410-2c5196dfe48c?w=1200&h=630&fit=crop&crop=center&q=80",  # Produit skincare bois serviettes
+    "https://images.unsplash.com/photo-1767186833936-c7963d3ecc49?w=1200&h=630&fit=crop&crop=center&q=80",  # Flacon huile serum
+    # Light therapy / lumiere rouge
+    "https://images.unsplash.com/photo-1641175622759-92095dc8f898?w=1200&h=630&fit=crop&crop=faces&q=80",  # Femme lumiere rouge visage
+]
+
+# Queries Unsplash de secours (si le pool cure est epuise)
 FEATURED_IMAGE_QUERIES = [
-    "luxury skincare routine soft light minimal",
-    "clean beauty product aesthetic white",
-    "skincare flatlay minimal white background",
-    "gentle face care routine morning light",
-    "beauty wellness self care soft pastel",
-    "glowing skin beauty natural light portrait",
-    "facial treatment spa clean minimal luxury",
-    "skin care beauty routine editorial soft",
+    "woman face skin glow natural light",
+    "facial spa treatment woman",
+    "skincare serum bottle minimal",
+    "woman healthy clear skin portrait",
 ]
 
 
@@ -425,13 +442,23 @@ def insert_images_in_html(html_content, images):
 
 
 def fetch_featured_image(article_index):
-    """Recupere une image vedette depuis Unsplash avec DA corporate skincare coherente."""
+    """Recupere une image vedette depuis le pool cure (DA coherente garantie).
+    Utilise des URLs directes Unsplash CDN — pas d'appel API necessaire.
+    Fallback sur Unsplash search si le pool est epuise."""
+
+    # Priorite 1 : pool cure (DA garantie, pas d'API call)
+    if CURATED_FEATURED_IMAGES:
+        idx = (article_index - 1) % len(CURATED_FEATURED_IMAGES)
+        image_url = CURATED_FEATURED_IMAGES[idx]
+        log(f"Image vedette curee #{idx + 1}/{len(CURATED_FEATURED_IMAGES)}")
+        return image_url
+
+    # Fallback : Unsplash search (si pool vide)
     if not UNSPLASH_ACCESS_KEY:
         log("Pas de cle Unsplash, image vedette ignoree")
         return None
 
     query = FEATURED_IMAGE_QUERIES[article_index % len(FEATURED_IMAGE_QUERIES)]
-
     try:
         response = requests.get(
             "https://api.unsplash.com/search/photos",
@@ -449,9 +476,8 @@ def fetch_featured_image(article_index):
         data = response.json()
         if data.get("results"):
             photo_idx = article_index % min(5, len(data["results"]))
-            photo = data["results"][photo_idx]
-            image_url = photo["urls"]["regular"]
-            log(f"Image vedette Unsplash : {query} -> OK")
+            image_url = data["results"][photo_idx]["urls"]["regular"]
+            log(f"Image vedette Unsplash search : {query} -> OK")
             return image_url
     except Exception as e:
         log(f"Erreur image vedette Unsplash : {e}")
