@@ -17,11 +17,13 @@ def now_paris():
     """Retourne l'heure actuelle a Paris."""
     return datetime.now(PARIS_TZ)
 
+
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
 SHOPIFY_STORE = os.getenv("SHOPIFY_STORE")
 SHOPIFY_BLOG_ID = os.getenv("SHOPIFY_BLOG_ID")
 SHOPIFY_CLIENT_ID = os.getenv("SHOPIFY_CLIENT_ID")
 SHOPIFY_CLIENT_SECRET = os.getenv("SHOPIFY_CLIENT_SECRET")
+UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY")
 ARTICLES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "articles.json")
 LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs.txt")
 
@@ -165,6 +167,30 @@ DONNEES STRUCTUREES OBLIGATOIRES — Integre a la fin de chaque article ces bloc
 }
 </script>"""
 
+# Stop words francais pour le slug
+STOP_WORDS = [
+    'qu', 'est', 'ce', 'que', 'la', 'le', 'les', 'un', 'une', 'des',
+    'de', 'du', 'en', 'et', 'ou', 'a', 'au', 'aux', 'par', 'pour',
+    'sur', 'avec', 'dans', 'son', 'sa', 'ses', 'mon', 'ma', 'mes',
+    'ton', 'ta', 'tes', 'ce', 'cette', 'ces', 'qui', 'dont', 'il',
+    'elle', 'on', 'nous', 'vous', 'ils', 'elles', 'ne', 'pas',
+    'plus', 'tout', 'tous', 'toute', 'toutes', 'comment', 'pourquoi',
+    'votre', 'vos', 'peut', 'sont', 'etre', 'avoir', 'faire',
+    'vraiment', 'aussi', 'entre', 'apres', 'avant', 'bien',
+    'comme', 'meme', 'encore', 'quand', 'tres', 'si', 'mais',
+    'donc', 'car', 'ni', 'se', 'y', 'faut'
+]
+
+# Queries Unsplash par thematique
+UNSPLASH_QUERIES = {
+    "science": ["red light therapy skin", "LED light therapy", "skin cells microscope"],
+    "anti_age": ["glowing skin beauty", "luxury skincare routine", "youthful skin closeup"],
+    "acne": ["clear skin beauty", "blue light therapy", "clean skin care"],
+    "routine": ["morning skincare routine", "luxury bathroom self care", "minimal skincare flatlay"],
+    "comparatif": ["beauty technology device", "spa treatment room", "skincare comparison"],
+    "faq": ["woman reading skincare", "gentle light therapy", "skincare education"]
+}
+
 
 def log(message):
     timestamp = now_paris().strftime("%Y-%m-%d %H:%M:%S")
@@ -216,31 +242,22 @@ def get_due_article(articles):
 
 
 def generate_slug(title):
-    """Genere un slug SEO optimise a partir du titre."""
+    """Genere un slug SEO court et optimise (max 50 car., sans stop words)."""
     slug = unicodedata.normalize('NFKD', title).encode('ascii', 'ignore').decode('ascii')
     slug = slug.lower()
-    slug = re.sub(r'[^a-z0-9\s-]', '', slug)
-    slug = re.sub(r'[\s]+', '-', slug.strip())
-    slug = re.sub(r'-+', '-', slug)
-    slug = slug[:60].rstrip('-')
-    return slug
+    slug = re.sub(r'[^a-z0-9\s]', ' ', slug)
+    words = [w for w in slug.split() if w not in STOP_WORDS and len(w) > 1]
+    slug = '-'.join(words[:6])
+    return slug[:50].rstrip('-')
 
 
 def generate_seo_tags(title, keywords):
     """Genere des tags SEO complets pour Shopify."""
     base_tags = [
-        "masque-led",
-        "luminotherapie",
-        "luminotherapie-led",
-        "soin-visage",
-        "soin-visage-led",
-        "mine-de-teint",
-        "masque-led-pro",
-        "photobiomodulation",
-        "beaute",
-        "anti-age",
-        "skincare",
-        "led-visage"
+        "masque-led", "luminotherapie", "luminotherapie-led",
+        "soin-visage", "soin-visage-led", "mine-de-teint",
+        "masque-led-pro", "photobiomodulation", "beaute",
+        "anti-age", "skincare", "led-visage"
     ]
     article_tags = [k.strip().lower().replace(" ", "-") for k in keywords.split(",")]
     all_tags = base_tags + article_tags
@@ -253,24 +270,116 @@ def generate_seo_tags(title, keywords):
     return ", ".join(unique_tags)
 
 
-def extract_meta_and_content(raw_response):
-    """Separe la meta description du contenu HTML."""
+def extract_seo_and_content(raw_response):
+    """Extrait le title tag, la meta description et le contenu HTML."""
     lines = raw_response.strip().split("\n")
+    title_tag = ""
     meta_description = ""
     html_start = 0
 
     for i, line in enumerate(lines):
-        if line.strip().startswith("META_DESCRIPTION:"):
-            meta_description = line.replace("META_DESCRIPTION:", "").strip()
+        stripped = line.strip()
+        if stripped.startswith("TITLE_TAG:"):
+            title_tag = stripped.replace("TITLE_TAG:", "").strip()
             html_start = i + 1
-            break
+        elif stripped.startswith("META_DESCRIPTION:"):
+            meta_description = stripped.replace("META_DESCRIPTION:", "").strip()
+            html_start = i + 1
 
-    # Sauter les lignes vides apres META_DESCRIPTION
+    # Sauter les lignes vides
     while html_start < len(lines) and lines[html_start].strip() == "":
         html_start += 1
 
     html_content = "\n".join(lines[html_start:]).strip()
-    return meta_description, html_content
+
+    # Securite : tronquer le title si Claude depasse
+    if len(title_tag) > 70:
+        title_tag = title_tag[:67] + "..."
+
+    log(f"Title tag : {len(title_tag)} car. -> {title_tag}")
+    log(f"Meta desc : {len(meta_description)} car.")
+
+    return title_tag, meta_description, html_content
+
+
+def get_article_theme(article_index):
+    """Determine la thematique d'un article selon son index."""
+    if article_index <= 20:
+        return "science"
+    elif article_index <= 40:
+        return "anti_age"
+    elif article_index <= 55:
+        return "acne"
+    elif article_index <= 70:
+        return "routine"
+    elif article_index <= 85:
+        return "comparatif"
+    else:
+        return "faq"
+
+
+def fetch_unsplash_images(article_index, count=3):
+    """Recupere des images libres de droit depuis Unsplash."""
+    if not UNSPLASH_ACCESS_KEY:
+        log("Pas de cle Unsplash, images ignorees")
+        return []
+
+    theme = get_article_theme(article_index)
+    queries = UNSPLASH_QUERIES.get(theme, ["skincare beauty"])
+    images = []
+
+    for i in range(min(count, len(queries))):
+        try:
+            response = requests.get(
+                "https://api.unsplash.com/search/photos",
+                params={
+                    "query": queries[i],
+                    "orientation": "landscape",
+                    "per_page": 1,
+                    "page": (article_index % 10) + 1
+                },
+                headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"},
+                timeout=15
+            )
+            response.raise_for_status()
+            data = response.json()
+            if data.get("results"):
+                photo = data["results"][0]
+                images.append({
+                    "url": photo["urls"]["regular"],
+                    "photographer": photo["user"]["name"],
+                    "photographer_url": photo["user"]["links"]["html"]
+                })
+                log(f"Image {i+1} Unsplash : {queries[i]} -> OK")
+        except Exception as e:
+            log(f"Erreur Unsplash image {i+1} : {e}")
+
+    return images
+
+
+def insert_images_in_html(html_content, images):
+    """Insere les images aux emplacements prevus dans le HTML."""
+    for i, img in enumerate(images):
+        placeholder = f"<!-- IMAGE_{i+1} -->"
+        alt_match = re.search(rf'<!-- IMAGE_{i+1} -->\s*<!-- ALT:\s*(.+?)\s*-->', html_content)
+        alt_text = alt_match.group(1) if alt_match else f"Luminotherapie LED visage soin peau image {i+1}"
+
+        img_html = f'''<figure style="margin: 2rem 0; text-align: center;">
+  <img src="{img['url']}"
+       alt="{alt_text}"
+       loading="lazy"
+       width="800" height="450"
+       style="border-radius: 12px; width: 100%; max-width: 800px; height: auto;">
+  <figcaption style="margin-top: 0.5rem; font-size: 0.9em; color: #666; font-style: italic;">
+    {alt_text} — Photo par <a href="{img['photographer_url']}?utm_source=minedeteint&utm_medium=referral" rel="noopener" target="_blank">{img['photographer']}</a> sur <a href="https://unsplash.com?utm_source=minedeteint&utm_medium=referral" rel="noopener" target="_blank">Unsplash</a>
+  </figcaption>
+</figure>'''
+
+        # Remplacer le placeholder + commentaire ALT
+        pattern = rf'<!-- IMAGE_{i+1} -->(\s*<!-- ALT:\s*.+?\s*-->)?'
+        html_content = re.sub(pattern, img_html, html_content, count=1)
+
+    return html_content
 
 
 def generate_article(title, keywords, scheduled_date, slug):
@@ -278,74 +387,71 @@ def generate_article(title, keywords, scheduled_date, slug):
 
     prompt = f"""Redige un article de blog complet en HTML pour le site minedeteint.com.
 
-TITRE : {title}
+SUJET : {title}
 MOTS-CLES CIBLES : {keywords}
 SLUG URL : {slug}
 DATE DE PUBLICATION : {scheduled_date}
 
-AVANT de commencer le HTML de l'article, ecris sur la premiere ligne :
-META_DESCRIPTION: [ta meta description ici, 145-155 caracteres, contenant le mot-cle principal, donnant envie de cliquer, sans guillemets ni caracteres speciaux]
+AVANT de commencer le HTML de l'article, ecris ces deux lignes :
+TITLE_TAG: [titre SEO optimise, MAXIMUM 70 caracteres espaces compris, percutant et court, mot-cle principal au debut. Peut etre different du H1. Ne PAS ajouter " | Mine de Teint" sauf si ca rentre dans les 70 car.]
+META_DESCRIPTION: [meta description, viser 150 a 160 caracteres. Utiliser tout l'espace. Mot-cle principal, benefice concret, chiffre ou promesse. Terminer par un point. Jamais de guillemets.]
 
-Puis saute une ligne et commence le HTML.
+Puis saute une ligne et commence le HTML avec un H1 qui peut etre plus long et descriptif que le title tag.
 
 REGLES SEO ON-PAGE STRICTES :
 
 TITRES ET STRUCTURE :
-- Le H1 contient le mot-cle principal exact
-- Chaque H2 cible une variante longue traine ou une question que les gens posent sur Google
+- Le H1 contient le mot-cle principal exact (peut etre plus long que le title tag)
+- Chaque H2 cible une variante longue traine ou une question Google
 - Les H3 approfondissent les H2 avec des sous-themes specifiques
 - Maximum 300 mots entre deux sous-titres (H2 ou H3)
-- La structure doit repondre a l'intention de recherche
 
 TABLE DES MATIERES :
-- Ajouter en debut d'article une table des matieres HTML avec ancres :
+- En debut d'article, table des matieres HTML avec ancres :
 <nav aria-label="Table des matieres">
   <h2>Sommaire</h2>
   <ol>
     <li><a href="#section-1">[Titre section 1]</a></li>
-    <li><a href="#section-2">[Titre section 2]</a></li>
   </ol>
 </nav>
 - Chaque H2 doit avoir un id correspondant : <h2 id="section-1">...</h2>
 
 MAILLAGE INTERNE :
-- Ajoute 3 a 5 liens internes vers d'autres articles du blog quand c'est pertinent
-- Format : <a href="https://minedeteint.com/blogs/journal/[slug-article-lie]">[ancre naturelle]</a>
-- Les ancres doivent etre descriptives (jamais "cliquez ici")
+- 3 a 5 liens internes vers d'autres articles du blog
+- Format : <a href="https://minedeteint.com/blogs/journal/[slug]">[ancre descriptive]</a>
 
-CONTENU OPTIMISE POUR LES FEATURED SNIPPETS :
-- Inclure au moins un paragraphe de definition directe (format "X est..." au debut d'une section)
-- Inclure au moins une liste a puces resumant les points cles
-- Inclure au moins un tableau comparatif ou recapitulatif si pertinent
-- Utiliser des phrases courtes et directes qui repondent aux questions Google
+CONTENU OPTIMISE FEATURED SNIPPETS :
+- Au moins un paragraphe de definition directe (format "X est...")
+- Au moins une liste a puces resumant les points cles
+- Au moins un tableau comparatif ou recapitulatif si pertinent
 
-CONTENU OPTIMISE POUR LES LLMs (GEO) :
-- Ecrire des phrases factuelles claires que les LLMs peuvent citer directement
-- Inclure des statistiques sourcees et des chiffres precis
-- Structurer les reponses en format "question implicite -> reponse directe"
-- Utiliser le pattern Entity-Attribute-Value : "Le Masque LED Pro Mine de Teint utilise 5 longueurs d'onde dont le 1064nm infrarouge profond exclusif"
-- Mentionner le nom complet du produit et de la marque au moins 5 fois dans l'article
-- Inclure des affirmations d'expertise : "Selon les etudes cliniques...", "Les dermatologues recommandent..."
+CONTENU OPTIMISE LLMs (GEO) :
+- Phrases factuelles claires citables directement
+- Statistiques sourcees et chiffres precis
+- Pattern Entity-Attribute-Value
+- Nom complet du produit et de la marque au moins 5 fois
+- Affirmations d'expertise : "Selon les etudes cliniques...", "Les dermatologues recommandent..."
 
 BALISES SEMANTIQUES HTML :
-- Utiliser <strong> pour les mots-cles importants (2-3 fois par section, pas plus)
-- Utiliser <em> pour les nuances et termes techniques
-- Utiliser <blockquote> pour les citations d'experts ou donnees cles
-- Utiliser <mark> pour les chiffres cles (ex: <mark>99% des utilisatrices</mark>)
-- Utiliser <abbr title="..."> pour les acronymes techniques (LED, nm, CE, FCC)
-- Utiliser <time datetime="..."> pour les durees et dates mentionnees
+- <strong> pour les mots-cles importants (2-3 fois par section)
+- <em> pour les nuances et termes techniques
+- <blockquote> pour les citations d'experts
+- <mark> pour les chiffres cles
+- <abbr title="..."> pour les acronymes (LED, nm, CE, FCC)
+- <time datetime="..."> pour les durees et dates
 
-IMAGES (emplacements a preparer) :
-- Ajouter 2 a 3 emplacements d'images par article :
-<figure>
-  <img src="" alt="[description riche en mots-cles, 8-12 mots]" loading="lazy" width="800" height="500">
-  <figcaption>[legende descriptive]</figcaption>
-</figure>
+IMAGES :
+- Place exactement 3 commentaires HTML aux endroits strategiques :
+  <!-- IMAGE_1 --> apres l'introduction
+  <!-- IMAGE_2 --> au milieu (apres la 3eme section H2)
+  <!-- IMAGE_3 --> juste avant la conclusion/CTA
+- Pour chaque marqueur, ajoute le alt text ideal :
+  <!-- IMAGE_1 --> <!-- ALT: description riche en mots-cles 8-12 mots -->
 
 LONGUEUR ET PROFONDEUR :
 - Minimum 3000 mots, idealement 3500-4000
-- Chaque section H2 doit faire 400-600 mots minimum
-- L'article doit etre plus complet que tout ce qui existe sur le sujet en francais
+- Chaque section H2 : 400-600 mots minimum
+- Etre LA ressource definitive sur le sujet en francais
 
 STRUCTURE FINALE :
 - Intro engageante (200-300 mots)
@@ -355,10 +461,9 @@ STRUCTURE FINALE :
 - Conclusion avec CTA vers : https://minedeteint.com/products/masque-led-luminotherapie-visage-pro
 - Donnees structurees JSON-LD : Article, FAQPage, Product, et HowTo si pertinent
   - Dans le schema Article, utilise le slug "{slug}" et la date "{scheduled_date}"
-  - Dans le schema FAQPage, reprends les questions de la section FAQ
 
 Ne pas inclure html, head, body — uniquement le contenu de l'article.
-Reponds avec META_DESCRIPTION sur la premiere ligne puis le HTML complet."""
+Reponds avec TITLE_TAG et META_DESCRIPTION sur les deux premieres lignes puis le HTML complet."""
 
     response = requests.post(
         "https://api.anthropic.com/v1/messages",
@@ -381,14 +486,14 @@ Reponds avec META_DESCRIPTION sur la premiere ligne puis le HTML complet."""
     return data["content"][0]["text"]
 
 
-def publish_to_shopify(title, html_content, keywords, meta_description, slug, shopify_token):
-    log(f"Publication sur Shopify : {title}")
+def publish_to_shopify(title_tag, html_content, keywords, meta_description, slug, shopify_token):
+    log(f"Publication sur Shopify : {title_tag}")
 
-    tags = generate_seo_tags(title, keywords)
+    tags = generate_seo_tags(title_tag, keywords)
 
     article_data = {
         "article": {
-            "title": title,
+            "title": title_tag,
             "handle": slug,
             "body_html": html_content,
             "published": True,
@@ -404,7 +509,7 @@ def publish_to_shopify(title, html_content, keywords, meta_description, slug, sh
                 {
                     "namespace": "global",
                     "key": "title_tag",
-                    "value": title,
+                    "value": title_tag,
                     "type": "single_line_text_field"
                 }
             ]
@@ -424,7 +529,8 @@ def publish_to_shopify(title, html_content, keywords, meta_description, slug, sh
     response.raise_for_status()
     data = response.json()
     article_id = data["article"]["id"]
-    log(f"Article publie avec succes — ID Shopify : {article_id}")
+    published_url = f"https://minedeteint.com/blogs/journal-du-collagene/{slug}"
+    log(f"Article publie — ID: {article_id} — URL: {published_url}")
     return article_id
 
 
@@ -450,7 +556,7 @@ def main():
     log(f"Article {article['index']}/100 (Phase {phase}) — {remaining} restants")
     log(f"Heure planifiee : {article['scheduled_datetime']}")
 
-    slug = generate_slug(article["title"])
+    slug = article.get("slug") or generate_slug(article["title"])
 
     try:
         # Obtenir un token Shopify frais
@@ -464,19 +570,26 @@ def main():
             slug
         )
 
-        # Extraire meta description et HTML
-        meta_description, html_content = extract_meta_and_content(raw_content)
+        # Extraire title tag, meta description et HTML
+        title_tag, meta_description, html_content = extract_seo_and_content(raw_content)
+
+        if not title_tag:
+            title_tag = article["title"][:70]
+            log("ATTENTION : Pas de title tag detecte, utilisation du titre tronque")
+
         log(f"Article genere — {len(html_content)} caracteres")
-        if meta_description:
-            log(f"Meta description : {meta_description[:80]}...")
-        else:
-            log("ATTENTION : Pas de meta description detectee")
+
+        # Recuperer et inserer les images Unsplash
+        images = fetch_unsplash_images(article["index"])
+        if images:
+            html_content = insert_images_in_html(html_content, images)
+            log(f"{len(images)} images inserees")
 
         time.sleep(2)
 
         # Publier sur Shopify
         publish_to_shopify(
-            article["title"],
+            title_tag,
             html_content,
             article["keywords"],
             meta_description,
