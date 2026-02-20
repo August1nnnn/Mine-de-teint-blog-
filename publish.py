@@ -387,14 +387,22 @@ def get_due_article(articles):
     return None
 
 
-def generate_slug(title):
-    """Genere un slug SEO court et optimise (max 50 car., sans stop words)."""
+def generate_slug(title, max_len=60):
+    """Genere un slug SEO court et optimise (max 60 car., sans stop words, jamais coupe en plein mot)."""
     slug = unicodedata.normalize('NFKD', title).encode('ascii', 'ignore').decode('ascii')
     slug = slug.lower()
     slug = re.sub(r'[^a-z0-9\s]', ' ', slug)
     words = [w for w in slug.split() if w not in STOP_WORDS and len(w) > 1]
-    slug = '-'.join(words[:6])
-    return slug[:50].rstrip('-')
+    # Construire le slug mot par mot sans depasser la limite
+    parts = []
+    length = 0
+    for w in words[:7]:
+        new_length = length + len(w) + (1 if parts else 0)
+        if new_length > max_len:
+            break
+        parts.append(w)
+        length = new_length
+    return '-'.join(parts)
 
 
 def generate_seo_tags(title, keywords):
