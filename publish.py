@@ -191,28 +191,67 @@ UNSPLASH_QUERIES = {
     "faq": ["woman reading skincare", "gentle light therapy", "skincare education"]
 }
 
-# Pool cure d'images vedettes — URLs directes Unsplash CDN (pas besoin d'API)
-# DA coherente : skincare, soin visage, spa, light therapy, glow
-# Chaque image a ete verifiee : pas de marque visible, esthetique pro
-# Format 1200x630 (ratio OG image) avec crop intelligent sur les visages
-CURATED_FEATURED_IMAGES = [
-    # Visages / glow / beaute
-    "https://images.unsplash.com/photo-1767884139060-458f00bb75b1?w=1200&h=630&fit=crop&crop=faces&q=80",  # Closeup visage femme lumiere chaude
-    "https://images.unsplash.com/photo-1560190062-061cb7f295bd?w=1200&h=630&fit=crop&crop=faces&q=80",  # Portrait femme
-    "https://images.unsplash.com/photo-1569259330179-ef650d87beee?w=1200&h=630&fit=crop&crop=faces&q=80",  # Femme peau lumineuse
-    "https://images.unsplash.com/photo-1589221158826-aed6c80c3f15?w=1200&h=630&fit=crop&crop=faces&q=80",  # Femme peau nette
-    # Spa / soin facial
-    "https://images.unsplash.com/photo-1759214630580-7b2e97e2c29b?w=1200&h=630&fit=crop&crop=faces&q=80",  # Femme serviettes spa/sauna
-    "https://images.unsplash.com/photo-1719123045765-08ca3c27991b?w=1200&h=630&fit=crop&crop=faces&q=80",  # Femme serviette tete spa
-    # Produits skincare (sans marque)
-    "https://images.unsplash.com/photo-1768235146447-26b1549f845a?w=1200&h=630&fit=crop&crop=center&q=80",  # Pot creme visage bois
-    "https://images.unsplash.com/photo-1768235146410-2c5196dfe48c?w=1200&h=630&fit=crop&crop=center&q=80",  # Produit skincare bois serviettes
-    "https://images.unsplash.com/photo-1767186833936-c7963d3ecc49?w=1200&h=630&fit=crop&crop=center&q=80",  # Flacon huile serum
-    # Light therapy / lumiere rouge
-    "https://images.unsplash.com/photo-1641175622759-92095dc8f898?w=1200&h=630&fit=crop&crop=faces&q=80",  # Femme lumiere rouge visage
-]
+# Pools thematiques d'images vedettes — URLs directes Unsplash CDN
+# Organisees par theme pour matcher le sujet de chaque article
+# Pas d'appel API : URLs directes vers le CDN Unsplash
+_U = "https://images.unsplash.com"
+_FC = "w=1200&h=630&fit=crop&crop=faces&q=80"
+_CC = "w=1200&h=630&fit=crop&crop=center&q=80"
 
-# Queries Unsplash de secours (si le pool cure est epuise)
+THEMED_FEATURED_IMAGES = {
+    "science": [
+        f"{_U}/photo-1532187863486-abf9dbad1b69?{_CC}",   # Tubes a essai liquides colores — labo
+        f"{_U}/photo-1532094349884-543bc11b234d?{_CC}",   # Bechers transparents sur paillasse
+        f"{_U}/photo-1614935151651-0bea6508db6b?{_FC}",   # Chercheuse pipette en laboratoire
+        f"{_U}/photo-1590959651373-a3db0f38a961?{_CC}",   # Prisme refraction lumiere spectre
+    ],
+    "anti_age": [
+        f"{_U}/photo-1767884139060-458f00bb75b1?{_FC}",   # Closeup visage femme lumiere chaude
+        f"{_U}/photo-1759214630580-7b2e97e2c29b?{_FC}",   # Femme serviettes spa/sauna
+        f"{_U}/photo-1768235146447-26b1549f845a?{_CC}",   # Pot creme visage bois naturel
+        f"{_U}/photo-1506126613408-eca07ce68773?{_CC}",   # Meditation yoga bien-etre
+    ],
+    "acne": [
+        f"{_U}/photo-1589221158826-aed6c80c3f15?{_FC}",   # Femme peau nette naturelle
+        f"{_U}/photo-1768235146410-2c5196dfe48c?{_CC}",   # Produit skincare serviettes bois
+        f"{_U}/photo-1719123045765-08ca3c27991b?{_FC}",   # Femme serviette tete soin spa
+        f"{_U}/photo-1767186833936-c7963d3ecc49?{_CC}",   # Flacon serum huile
+    ],
+    "routine": [
+        f"{_U}/photo-1506126613408-eca07ce68773?{_CC}",   # Meditation yoga self-care
+        f"{_U}/photo-1759214630580-7b2e97e2c29b?{_FC}",   # Relaxation spa sauna
+        f"{_U}/photo-1768235146447-26b1549f845a?{_CC}",   # Creme visage soin quotidien
+        f"{_U}/photo-1719123045765-08ca3c27991b?{_FC}",   # Soin spa serviette
+    ],
+    "comparatif": [
+        f"{_U}/photo-1750315080835-6f8640a00a12?{_CC}",   # Ondes lumineuses abstraites
+        f"{_U}/photo-1590959651373-a3db0f38a961?{_CC}",   # Prisme spectre lumineux
+        f"{_U}/photo-1532187863486-abf9dbad1b69?{_CC}",   # Tubes labo recherche
+        f"{_U}/photo-1641175622759-92095dc8f898?{_FC}",   # Visage lumiere rouge LED
+    ],
+    "faq": [
+        f"{_U}/photo-1767884139060-458f00bb75b1?{_FC}",   # Visage lumiere chaude
+        f"{_U}/photo-1506126613408-eca07ce68773?{_CC}",   # Bien-etre meditation
+        f"{_U}/photo-1768235146410-2c5196dfe48c?{_CC}",   # Produit skincare naturel
+        f"{_U}/photo-1589221158826-aed6c80c3f15?{_FC}",   # Peau nette naturelle
+    ],
+    # Pool special pour articles sur les longueurs d'onde / spectre
+    "ondes": [
+        f"{_U}/photo-1750315080835-6f8640a00a12?{_CC}",   # Ondes lumineuses abstraites
+        f"{_U}/photo-1604012164853-9bb541fe0296?{_CC}",   # Trainées lumiere jaune/rouge
+        f"{_U}/photo-1709842984820-24e6f3b9d7dd?{_CC}",   # Lumiere coloree longue exposition
+        f"{_U}/photo-1752606402425-fa8ed3166a91?{_CC}",   # Ondes abstraites ombre lumiere
+        f"{_U}/photo-1749060684970-49b860214a74?{_CC}",   # Vagues colorees abstraites tourbillon
+        f"{_U}/photo-1590959651373-a3db0f38a961?{_CC}",   # Prisme refraction spectre
+    ],
+    # Pool light therapy (lumiere rouge/bleue sur visage)
+    "led": [
+        f"{_U}/photo-1641175622759-92095dc8f898?{_FC}",   # Femme lumiere rouge visage
+        f"{_U}/photo-1560190062-061cb7f295bd?{_FC}",      # Portrait femme eclairage studio
+    ],
+}
+
+# Queries Unsplash de secours (si aucun pool ne correspond)
 FEATURED_IMAGE_QUERIES = [
     "woman face skin glow natural light",
     "facial spa treatment woman",
@@ -377,6 +416,35 @@ def get_article_theme(article_index):
         return "faq"
 
 
+def get_featured_image_theme(title, keywords, base_theme):
+    """Detecte le sous-theme pour choisir le bon pool d'images vedettes.
+    Analyse le titre et les mots-cles pour affiner la selection."""
+    title_lower = title.lower()
+    kw_lower = keywords.lower()
+    combined = title_lower + " " + kw_lower
+
+    # Detection longueurs d'onde / spectre / nm
+    if any(w in combined for w in ["longueur d'onde", "spectre", "nm ", "460nm", "590nm",
+                                     "650nm", "850nm", "1064nm", "infrarouge", "nanometre"]):
+        return "ondes"
+
+    # Detection LED / lumiere rouge/bleue sur peau
+    if any(w in combined for w in ["led rouge", "led bleue", "lumiere rouge",
+                                     "lumiere bleue", "photobiomodulation", "phototherapie"]):
+        return "led"
+
+    return base_theme
+
+
+def generate_featured_alt(title, keywords):
+    """Genere un alt text SEO pour l'image vedette, coherent avec le sujet."""
+    # Extraire les 3 premiers mots-cles
+    kw_list = [k.strip() for k in keywords.split(",")][:3]
+    kw_str = ", ".join(kw_list)
+    # Alt text SEO : descriptif + mots-cles + marque
+    return f"{title} — {kw_str} | Mine de Teint"
+
+
 def fetch_unsplash_images(article_index, count=3):
     """Recupere des images libres de droit depuis Unsplash."""
     if not UNSPLASH_ACCESS_KEY:
@@ -441,21 +509,26 @@ def insert_images_in_html(html_content, images):
     return html_content
 
 
-def fetch_featured_image(article_index):
-    """Recupere une image vedette depuis le pool cure (DA coherente garantie).
-    Utilise des URLs directes Unsplash CDN — pas d'appel API necessaire.
-    Fallback sur Unsplash search si le pool est epuise."""
+def fetch_featured_image(article_index, title, keywords):
+    """Selectionne une image vedette thematique depuis le pool cure.
+    Analyse le titre et mots-cles pour choisir le bon pool d'images.
+    URLs directes CDN Unsplash — aucun appel API necessaire."""
 
-    # Priorite 1 : pool cure (DA garantie, pas d'API call)
-    if CURATED_FEATURED_IMAGES:
-        idx = (article_index - 1) % len(CURATED_FEATURED_IMAGES)
-        image_url = CURATED_FEATURED_IMAGES[idx]
-        log(f"Image vedette curee #{idx + 1}/{len(CURATED_FEATURED_IMAGES)}")
+    base_theme = get_article_theme(article_index)
+    theme = get_featured_image_theme(title, keywords, base_theme)
+
+    # Selectionner le pool thematique
+    pool = THEMED_FEATURED_IMAGES.get(theme, THEMED_FEATURED_IMAGES.get(base_theme, []))
+
+    if pool:
+        idx = (article_index - 1) % len(pool)
+        image_url = pool[idx]
+        log(f"Image vedette [{theme}] #{idx + 1}/{len(pool)}")
         return image_url
 
-    # Fallback : Unsplash search (si pool vide)
+    # Fallback : Unsplash search API
     if not UNSPLASH_ACCESS_KEY:
-        log("Pas de cle Unsplash, image vedette ignoree")
+        log("Pas d'image vedette disponible")
         return None
 
     query = FEATURED_IMAGE_QUERIES[article_index % len(FEATURED_IMAGE_QUERIES)]
@@ -634,6 +707,7 @@ def publish_to_shopify(title_tag, html_content, keywords, meta_description, slug
         "article": {
             "title": title_tag,
             "handle": slug,
+            "author": "Nos Experts Dermatologues",
             "body_html": html_content,
             "published": True,
             "tags": tags,
@@ -655,13 +729,14 @@ def publish_to_shopify(title_tag, html_content, keywords, meta_description, slug
         }
     }
 
-    # Image vedette (featured image)
+    # Image vedette (featured image) avec alt text SEO
     if featured_image_url:
+        featured_alt = generate_featured_alt(title_tag, keywords)
         article_data["article"]["image"] = {
             "src": featured_image_url,
-            "alt": f"{title_tag} - Mine de Teint"
+            "alt": featured_alt
         }
-        log(f"Image vedette ajoutee")
+        log(f"Image vedette ajoutee — alt: {featured_alt[:60]}...")
 
     response = requests.post(
         f"https://{SHOPIFY_STORE}/admin/api/2024-01/blogs/{SHOPIFY_BLOG_ID}/articles.json",
@@ -732,8 +807,8 @@ def main():
             html_content = insert_images_in_html(html_content, images)
             log(f"{len(images)} images inserees dans le corps")
 
-        # Recuperer l'image vedette (featured image)
-        featured_image_url = fetch_featured_image(article["index"])
+        # Recuperer l'image vedette (thematique selon le sujet)
+        featured_image_url = fetch_featured_image(article["index"], article["title"], article["keywords"])
 
         time.sleep(2)
 
