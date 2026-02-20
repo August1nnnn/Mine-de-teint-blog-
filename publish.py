@@ -181,7 +181,7 @@ STOP_WORDS = [
     'donc', 'car', 'ni', 'se', 'y', 'faut'
 ]
 
-# Queries Unsplash par thematique
+# Queries Unsplash par thematique (images dans le corps de l'article)
 UNSPLASH_QUERIES = {
     "science": ["red light therapy skin", "LED light therapy", "skin cells microscope"],
     "anti_age": ["glowing skin beauty", "luxury skincare routine", "youthful skin closeup"],
@@ -190,6 +190,18 @@ UNSPLASH_QUERIES = {
     "comparatif": ["beauty technology device", "spa treatment room", "skincare comparison"],
     "faq": ["woman reading skincare", "gentle light therapy", "skincare education"]
 }
+
+# Queries image vedette — DA corporate skincare lisse et coherente
+FEATURED_IMAGE_QUERIES = [
+    "luxury skincare routine soft light minimal",
+    "clean beauty product aesthetic white",
+    "skincare flatlay minimal white background",
+    "gentle face care routine morning light",
+    "beauty wellness self care soft pastel",
+    "glowing skin beauty natural light portrait",
+    "facial treatment spa clean minimal luxury",
+    "skin care beauty routine editorial soft",
+]
 
 
 def log(message):
@@ -323,9 +335,6 @@ def extract_seo_and_content(raw_response):
     if len(title_tag) > 70:
         title_tag = title_tag[:67] + "..."
 
-    # Title Case : Majuscule a Chaque Mot pour le titre
-    title_tag = title_case_fr(title_tag)
-
     # Supprimer tout H1 du HTML (Shopify ajoute deja le titre en H1)
     html_content = re.sub(r'<h1[^>]*>.*?</h1>\s*', '', html_content, flags=re.IGNORECASE | re.DOTALL)
 
@@ -415,6 +424,65 @@ def insert_images_in_html(html_content, images):
     return html_content
 
 
+def fetch_featured_image(article_index):
+    """Recupere une image vedette depuis Unsplash avec DA corporate skincare coherente."""
+    if not UNSPLASH_ACCESS_KEY:
+        log("Pas de cle Unsplash, image vedette ignoree")
+        return None
+
+    query = FEATURED_IMAGE_QUERIES[article_index % len(FEATURED_IMAGE_QUERIES)]
+
+    try:
+        response = requests.get(
+            "https://api.unsplash.com/search/photos",
+            params={
+                "query": query,
+                "orientation": "landscape",
+                "per_page": 5,
+                "page": (article_index // len(FEATURED_IMAGE_QUERIES)) + 1,
+                "order_by": "relevant"
+            },
+            headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"},
+            timeout=15
+        )
+        response.raise_for_status()
+        data = response.json()
+        if data.get("results"):
+            photo_idx = article_index % min(5, len(data["results"]))
+            photo = data["results"][photo_idx]
+            image_url = photo["urls"]["regular"]
+            log(f"Image vedette Unsplash : {query} -> OK")
+            return image_url
+    except Exception as e:
+        log(f"Erreur image vedette Unsplash : {e}")
+
+    return None
+
+
+def update_article_featured_image(article_id, image_url, title, shopify_token):
+    """Met a jour l'image vedette d'un article existant."""
+    log(f"Mise a jour image vedette article {article_id}...")
+    response = requests.put(
+        f"https://{SHOPIFY_STORE}/admin/api/2024-01/blogs/{SHOPIFY_BLOG_ID}/articles/{article_id}.json",
+        headers={
+            "X-Shopify-Access-Token": shopify_token,
+            "Content-Type": "application/json"
+        },
+        json={
+            "article": {
+                "id": article_id,
+                "image": {
+                    "src": image_url,
+                    "alt": f"{title} - Mine de Teint"
+                }
+            }
+        },
+        timeout=30
+    )
+    response.raise_for_status()
+    log(f"Image vedette mise a jour pour article {article_id}")
+
+
 def generate_article(title, keywords, scheduled_date, slug):
     log(f"Generation de l'article : {title}")
 
@@ -426,7 +494,14 @@ SLUG URL : {slug}
 DATE DE PUBLICATION : {scheduled_date}
 
 AVANT de commencer le HTML de l'article, ecris ces deux lignes :
-TITLE_TAG: [titre SEO optimise, MAXIMUM 70 caracteres espaces compris, percutant et court, mot-cle principal au debut. Peut etre different du H1. Ne PAS ajouter " | Mine de Teint" sauf si ca rentre dans les 70 car.]
+TITLE_TAG: [titre SEO optimise en Title Case editorial, MAXIMUM 70 caracteres espaces compris. Regles Title Case :
+- Majuscule a Chaque Mot Significatif
+- Minuscule UNIQUEMENT pour : de, du, des, le, la, les, un, une, et, ou, en, a, au, aux, par, pour, sur, avec, dans, ne, se, ce, que, qui
+- Apres un : (deux-points), majuscule au premier mot
+- Acronymes en majuscules : LED, SEO, UV
+- Mots avec trait d'union : les deux parties en majuscule si significatifs (Anti-Age, Avant-Apres) mais Agissent-elles, Peut-on
+- EXEMPLES de bons titres : "LED Rouge 650nm : la Longueur d'Onde Anti-Age la Plus Efficace" / "Comment la Luminotherapie LED Agit sur Votre Peau en Profondeur" / "Acne et LED Bleue : Protocole Complet pour une Peau Nette"
+- Mot-cle principal au debut. Percutant et court. Peut etre different du H1.]
 META_DESCRIPTION: [meta description, viser 150 a 160 caracteres. Utiliser tout l'espace. Mot-cle principal, benefice concret, chiffre ou promesse. Terminer par un point. Jamais de guillemets.]
 
 Puis saute une ligne et commence le HTML DIRECTEMENT avec le contenu (intro, puis table des matieres, puis sections H2).
@@ -524,7 +599,7 @@ Reponds avec TITLE_TAG et META_DESCRIPTION sur les deux premieres lignes puis le
     return data["content"][0]["text"]
 
 
-def publish_to_shopify(title_tag, html_content, keywords, meta_description, slug, shopify_token):
+def publish_to_shopify(title_tag, html_content, keywords, meta_description, slug, shopify_token, featured_image_url=None):
     log(f"Publication sur Shopify : {title_tag}")
 
     tags = generate_seo_tags(title_tag, keywords)
@@ -553,6 +628,14 @@ def publish_to_shopify(title_tag, html_content, keywords, meta_description, slug
             ]
         }
     }
+
+    # Image vedette (featured image)
+    if featured_image_url:
+        article_data["article"]["image"] = {
+            "src": featured_image_url,
+            "alt": f"{title_tag} - Mine de Teint"
+        }
+        log(f"Image vedette ajoutee")
 
     response = requests.post(
         f"https://{SHOPIFY_STORE}/admin/api/2024-01/blogs/{SHOPIFY_BLOG_ID}/articles.json",
@@ -617,22 +700,26 @@ def main():
 
         log(f"Article genere — {len(html_content)} caracteres")
 
-        # Recuperer et inserer les images Unsplash
+        # Recuperer et inserer les images Unsplash dans le corps
         images = fetch_unsplash_images(article["index"])
         if images:
             html_content = insert_images_in_html(html_content, images)
-            log(f"{len(images)} images inserees")
+            log(f"{len(images)} images inserees dans le corps")
+
+        # Recuperer l'image vedette (featured image)
+        featured_image_url = fetch_featured_image(article["index"])
 
         time.sleep(2)
 
-        # Publier sur Shopify
+        # Publier sur Shopify avec image vedette
         publish_to_shopify(
             title_tag,
             html_content,
             article["keywords"],
             meta_description,
             slug,
-            shopify_token
+            shopify_token,
+            featured_image_url=featured_image_url
         )
 
         # Marquer comme publie
