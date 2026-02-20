@@ -26,8 +26,14 @@ SHOPIFY_CLIENT_ID = os.getenv("SHOPIFY_CLIENT_ID")
 SHOPIFY_CLIENT_SECRET = os.getenv("SHOPIFY_CLIENT_SECRET")
 UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY")
 INDEXNOW_KEY = os.getenv("INDEXNOW_KEY", "mdt-" + uuid.uuid5(uuid.NAMESPACE_URL, "minedeteint.com").hex[:24])
+PINTEREST_APP_ID = os.getenv("PINTEREST_APP_ID")
+PINTEREST_APP_SECRET = os.getenv("PINTEREST_APP_SECRET")
+PINTEREST_ACCESS_TOKEN = os.getenv("PINTEREST_ACCESS_TOKEN")
+PINTEREST_REFRESH_TOKEN = os.getenv("PINTEREST_REFRESH_TOKEN")
+PINTEREST_BOARD_ID = os.getenv("PINTEREST_BOARD_ID")
 ARTICLES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "articles.json")
 LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs.txt")
+ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 
 SYSTEM_PROMPT = """Tu es un expert en redaction SEO et GEO (Generative Engine Optimization) pour Mine de Teint, marque de beaute premium francaise specialisee en luminotherapie LED.
 
@@ -658,6 +664,145 @@ def update_article_featured_image(article_id, image_url, title, shopify_token):
     )
     response.raise_for_status()
     log(f"Image vedette mise a jour pour article {article_id}")
+
+
+# ============================================================
+# PINTEREST
+# ============================================================
+
+def update_env(key, value):
+    """Met a jour une variable dans le fichier .env local."""
+    lines = []
+    found = False
+    if os.path.exists(ENV_FILE):
+        with open(ENV_FILE, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    for i, line in enumerate(lines):
+        if line.startswith(f"{key}="):
+            lines[i] = f"{key}={value}\n"
+            found = True
+            break
+    if not found:
+        lines.append(f"{key}={value}\n")
+    with open(ENV_FILE, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+
+
+def refresh_pinterest_token():
+    """Renouvelle le token Pinterest avant expiration (30 jours)."""
+    import base64
+    refresh_token = os.getenv("PINTEREST_REFRESH_TOKEN")
+    if not refresh_token:
+        log("Pinterest : pas de refresh token, impossible de renouveler")
+        return None
+    try:
+        credentials = base64.b64encode(
+            f"{PINTEREST_APP_ID}:{PINTEREST_APP_SECRET}".encode()
+        ).decode()
+        response = requests.post(
+            "https://api.pinterest.com/v5/oauth/token",
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Authorization": f"Basic {credentials}"
+            },
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token
+            },
+            timeout=15
+        )
+        if response.status_code == 200:
+            data = response.json()
+            new_access = data["access_token"]
+            new_refresh = data.get("refresh_token", refresh_token)
+            update_env("PINTEREST_ACCESS_TOKEN", new_access)
+            update_env("PINTEREST_REFRESH_TOKEN", new_refresh)
+            os.environ["PINTEREST_ACCESS_TOKEN"] = new_access
+            os.environ["PINTEREST_REFRESH_TOKEN"] = new_refresh
+            log("Pinterest : token renouvele avec succes")
+            return new_access
+        else:
+            log(f"Pinterest : erreur refresh {response.status_code} -> {response.text[:200]}")
+            return None
+    except Exception as e:
+        log(f"Pinterest : erreur refresh -> {e}")
+        return None
+
+
+def post_to_pinterest(article_title, article_url, meta_description, image_url, keywords):
+    """Cree une epingle Pinterest pour chaque article publie."""
+    pinterest_token = os.getenv("PINTEREST_ACCESS_TOKEN")
+    board_id = os.getenv("PINTEREST_BOARD_ID")
+
+    if not pinterest_token or not board_id:
+        log("Pinterest : pas de token ou board configure, skip")
+        return
+
+    # Titre epingle (max 100 car.)
+    pin_title = article_title[:100]
+
+    # Description optimisee Pinterest SEO (max 500 car.)
+    hashtags_list = [k.strip().replace(' ', '').replace('-', '') for k in keywords.split(',')[:6]]
+    hashtags = ' '.join([f"#{h}" for h in hashtags_list if h])
+
+    pin_description = f"""{meta_description}
+
+Lire l'article complet sur minedeteint.com
+
+{hashtags} #luminotherapie #masqueled #skincare #beaute #soinsvisage #antiage #photobiomodulation #minedeteint #ledvisage"""
+
+    pin_data = {
+        "board_id": board_id,
+        "title": pin_title,
+        "description": pin_description[:500],
+        "link": article_url,
+        "alt_text": f"{article_title} - Mine de Teint"[:500]
+    }
+
+    if image_url and image_url.startswith("http"):
+        pin_data["media_source"] = {
+            "source_type": "image_url",
+            "url": image_url
+        }
+
+    try:
+        response = requests.post(
+            "https://api.pinterest.com/v5/pins",
+            headers={
+                "Authorization": f"Bearer {pinterest_token}",
+                "Content-Type": "application/json"
+            },
+            json=pin_data,
+            timeout=30
+        )
+
+        if response.status_code in [200, 201]:
+            pin_id = response.json().get("id", "")
+            log(f"Pinterest : epingle creee -> {pin_id}")
+        elif response.status_code == 401:
+            log("Pinterest : token expire, tentative de refresh...")
+            new_token = refresh_pinterest_token()
+            if new_token:
+                # Retry avec le nouveau token
+                response2 = requests.post(
+                    "https://api.pinterest.com/v5/pins",
+                    headers={
+                        "Authorization": f"Bearer {new_token}",
+                        "Content-Type": "application/json"
+                    },
+                    json=pin_data,
+                    timeout=30
+                )
+                if response2.status_code in [200, 201]:
+                    pin_id = response2.json().get("id", "")
+                    log(f"Pinterest : epingle creee (apres refresh) -> {pin_id}")
+                else:
+                    log(f"Pinterest : erreur apres refresh {response2.status_code}")
+        else:
+            log(f"Pinterest : erreur {response.status_code} -> {response.text[:300]}")
+
+    except Exception as e:
+        log(f"Pinterest : erreur (non bloquante) -> {e}")
 
 
 # ============================================================
@@ -1307,6 +1452,15 @@ def main():
         # Mettre a jour llms.txt et ai-sitemap avec le nouvel article
         update_llms_txt_on_shopify(articles, shopify_token)
         update_ai_sitemap_on_shopify(articles, shopify_token)
+
+        # Publication Pinterest
+        post_to_pinterest(
+            article_title=title_tag,
+            article_url=published_url,
+            meta_description=meta_description,
+            image_url=featured_image_url,
+            keywords=article["keywords"]
+        )
 
         log("=== Publication terminee avec succes ===")
 
