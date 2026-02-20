@@ -13,6 +13,9 @@ on:
 env:
   TZ: Europe/Paris
 
+permissions:
+  contents: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -31,13 +34,15 @@ jobs:
 
       - name: Creation du fichier .env
         run: |
-          cat > .env << EOF
+          cat > .env <<EOF
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           SHOPIFY_STORE=${{ secrets.SHOPIFY_STORE }}
           SHOPIFY_BLOG_ID=${{ secrets.SHOPIFY_BLOG_ID }}
           SHOPIFY_CLIENT_ID=${{ secrets.SHOPIFY_CLIENT_ID }}
           SHOPIFY_CLIENT_SECRET=${{ secrets.SHOPIFY_CLIENT_SECRET }}
           EOF
+          # Remove leading whitespace from .env values
+          sed -i 's/^[[:space:]]*//' .env
 
       - name: Execution du script de publication
         run: python3 publish.py
