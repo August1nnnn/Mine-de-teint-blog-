@@ -19,8 +19,8 @@
     "scheduled_date": "2026-02-20",
     "scheduled_time": "19:00",
     "scheduled_datetime": "2026-02-20T19:00:00",
-    "published": false,
-    "published_at": null,
+    "published": true,
+    "published_at": "2026-02-20T19:50:13.693361+01:00",
     "slug": "longueurs-onde-led-agissent-peau-profondeur"
   },
   {
