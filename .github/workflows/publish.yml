@@ -30,7 +30,7 @@ jobs:
           python-version: '3.11'
 
       - name: Installation des dependances
-        run: pip install requests python-dotenv
+        run: pip install requests python-dotenv PyNaCl
 
       - name: Creation du fichier .env
         run: |
@@ -41,6 +41,7 @@ jobs:
           SHOPIFY_CLIENT_ID=${{ secrets.SHOPIFY_CLIENT_ID }}
           SHOPIFY_CLIENT_SECRET=${{ secrets.SHOPIFY_CLIENT_SECRET }}
           UNSPLASH_ACCESS_KEY=${{ secrets.UNSPLASH_ACCESS_KEY }}
+          INDEXNOW_KEY=${{ secrets.INDEXNOW_KEY }}
           EOF
           # Remove leading whitespace from .env values
           sed -i 's/^[[:space:]]*//' .env
