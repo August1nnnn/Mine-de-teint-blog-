@@ -40,6 +40,7 @@ jobs:
           SHOPIFY_BLOG_ID=${{ secrets.SHOPIFY_BLOG_ID }}
           SHOPIFY_CLIENT_ID=${{ secrets.SHOPIFY_CLIENT_ID }}
           SHOPIFY_CLIENT_SECRET=${{ secrets.SHOPIFY_CLIENT_SECRET }}
+          UNSPLASH_ACCESS_KEY=${{ secrets.UNSPLASH_ACCESS_KEY }}
           EOF
           # Remove leading whitespace from .env values
           sed -i 's/^[[:space:]]*//' .env
