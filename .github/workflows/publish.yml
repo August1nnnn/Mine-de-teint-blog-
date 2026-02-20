@@ -42,11 +42,6 @@ jobs:
           SHOPIFY_CLIENT_SECRET=${{ secrets.SHOPIFY_CLIENT_SECRET }}
           UNSPLASH_ACCESS_KEY=${{ secrets.UNSPLASH_ACCESS_KEY }}
           INDEXNOW_KEY=${{ secrets.INDEXNOW_KEY }}
-          PINTEREST_APP_ID=${{ secrets.PINTEREST_APP_ID }}
-          PINTEREST_APP_SECRET=${{ secrets.PINTEREST_APP_SECRET }}
-          PINTEREST_ACCESS_TOKEN=${{ secrets.PINTEREST_ACCESS_TOKEN }}
-          PINTEREST_REFRESH_TOKEN=${{ secrets.PINTEREST_REFRESH_TOKEN }}
-          PINTEREST_BOARD_ID=${{ secrets.PINTEREST_BOARD_ID }}
           EOF
           # Remove leading whitespace from .env values
           sed -i 's/^[[:space:]]*//' .env
