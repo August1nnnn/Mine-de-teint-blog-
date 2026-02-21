@@ -89,7 +89,7 @@ ARTICLES_DATA = [
     {"title": "Masque LED souple vs rigide : avantages et inconvenients", "keywords": "masque LED souple rigide, comparatif LED flexible, LED souple vs dur"},
     {"title": "Les arnaques du marche des masques LED : comment les reconnaitre", "keywords": "arnaques masque LED, faux masque LED, reconnaitre arnaque LED"},
     {"title": "Masque LED professionnel a domicile : mythe ou realite ?", "keywords": "masque LED professionnel domicile, LED pro maison, qualite pro LED"},
-    {"title": "Guide d'achat masque LED 2025 : tout ce qu'il faut savoir avant d'acheter", "keywords": "guide achat masque LED 2025, acheter masque LED, meilleur masque LED"},
+    {"title": "Guide d'achat masque LED 2026 : tout ce qu'il faut savoir avant d'acheter", "keywords": "guide achat masque LED 2026, acheter masque LED, meilleur masque LED"},
     {"title": "Flux lumineux et densite de puissance : les chiffres qui comptent vraiment", "keywords": "flux lumineux LED, densite puissance masque, chiffres efficacite LED"},
     {"title": "Retours d'experience : ce que disent vraiment les utilisatrices apres 3 mois", "keywords": "retours experience masque LED, avis utilisatrices LED, temoignages LED 3 mois"},
     {"title": "Masque LED et prise en charge : mutuelles et remboursement possible ?", "keywords": "masque LED mutuelle, remboursement LED, prise en charge luminotherapie"},
